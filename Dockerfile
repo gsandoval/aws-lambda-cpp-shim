@@ -12,8 +12,8 @@ RUN chmod +x /usr/local/bin/build.sh
 ADD runtime /usr/local/runtime
 RUN mkdir /usr/local/runtime/dist
 
-RUN cd /usr/local/runtime/python && python -m compileall -d runtime . && cp *.pyc ../dist
-
 RUN cd /usr/local/runtime/cpp/vendor/json && make
+
+RUN cd /usr/local/runtime/python && python -m compileall -d runtime . && cp *.pyc ../dist
 
 RUN cd /usr/local/runtime/cpp && cmake . && make && cp *.so* ../dist

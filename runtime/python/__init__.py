@@ -23,8 +23,6 @@ sys.setdlopenflags(sys.getdlopenflags() | dl.RTLD_NOW | dl.RTLD_GLOBAL)
 
 import runtime
 
-print os.getenv("LD_LIBRARY_PATH")
-
 environment_variables = json.dumps({k: v for k, v in ((k, os.getenv(k)) for k in (
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",

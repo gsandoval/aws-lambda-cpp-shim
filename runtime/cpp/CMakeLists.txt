@@ -19,7 +19,7 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 
 include_directories(vendor/json/src)
 
-set(SOURCE_FILES src/python_interface.c src/cpp_invoker.cpp)
+set(SOURCE_FILES src/python_interface.c src/cpp_invoker.cpp src/lambda/context.cpp)
 
 add_library(runtime SHARED ${SOURCE_FILES})
 

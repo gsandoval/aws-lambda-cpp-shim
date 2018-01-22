@@ -3,8 +3,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
+#include <sstream>
 
 #include "json.hpp"
+#include "lambda/context.hpp"
 
 extern "C" {
 #include "handler_response.h"
@@ -20,7 +22,7 @@ char* new_string(const char *orig)
 }
 
 
-typedef nlohmann::json* (*remote_function_t)(nlohmann::json*, nlohmann::json*);
+typedef nlohmann::json* (*remote_function_t)(nlohmann::json*, lambda::Context*);
 
 void* library_handle;
 remote_function_t remote_function;
@@ -63,25 +65,71 @@ char* symbol_lookup(const char *name)
     return 0;
 }
 
+lambda::Context* parse_context(nlohmann::json& json_context)
+{
+    /*
+    "client_context": null, 
+    */
+    auto context = new lambda::Context();
+    if (json_context.at("aws_request_id").is_string()) {
+        context->SetAwsRequestId(json_context.at("aws_request_id").get<std::string>());
+    }
+    if (json_context.at("log_stream_name").is_string()) {
+        context->SetLogStreamName(json_context.at("log_stream_name").get<std::string>());
+    }
+    if (json_context.at("log_group_name").is_string()) {
+        context->SetLogGroupName(json_context.at("log_group_name").get<std::string>());
+    }
+    if (json_context.at("invoked_function_arn").is_string()) {
+        context->SetInvokedFunctionArn(json_context.at("invoked_function_arn").get<std::string>());
+    }
+    if (json_context.at("function_name").is_string()) {
+        context->SetFunctionName(json_context.at("function_name").get<std::string>());
+    }
+    if (json_context.at("function_version").is_string()) {
+        context->SetFunctionVersion(json_context.at("function_version").get<std::string>());
+    }
+    if (json_context.at("memory_limit_in_mb").is_string()) {
+        std::string memory_limit_str = json_context.at("memory_limit_in_mb").get<std::string>();
+        unsigned int memory_limit = 0;
+        std::istringstream iss(memory_limit_str);
+        iss >> memory_limit;
+        context->SetMemoryLimitInMb(memory_limit);
+    }
+    if (json_context.at("identity").is_object()) {
+        lambda::CognitoIdentity* identity = new lambda::CognitoIdentity();
+        if (json_context.at("identity").at("cognito_identity_id").is_string()) {
+            identity->SetIdentityId(json_context.at("identity").at("cognito_identity_id").get<std::string>());
+        }
+        if (json_context.at("identity").at("cognito_identity_pool_id").is_string()) {
+            identity->SetIdentityPoolId(json_context.at("identity").at("cognito_identity_pool_id").get<std::string>());
+        }
+        context->SetIdentity(identity);
+    }
+
+    return context;
+}
+
 struct handler_return handle_request(const char *event_str, const char *context_str, const char *environment_str)
 {
     setup_environment(environment_str);
 
-    runtime_log(new_string("handle_request event"));
-    runtime_log(new_string(event_str));
-    runtime_log(new_string("handle_request context"));
-    runtime_log(new_string(context_str));
-    runtime_log(new_string("handle_request environment"));
-    runtime_log(new_string(environment_str));
-
     nlohmann::json* event = new nlohmann::json(nlohmann::json::parse(event_str));
-    nlohmann::json* context = new nlohmann::json(nlohmann::json::parse(context_str));
+
+    auto logger = new lambda::Logger(runtime_log);
+
+    nlohmann::json json_context = nlohmann::json::parse(context_str);
+    auto context = parse_context(json_context);
+    context->SetLogger(logger);
 
     nlohmann::json* response = remote_function(event, context);
 
     char* payload = new_string(response->dump().c_str());
 
     delete response;
+    delete logger;
+    delete context;
+    delete event;
 
     struct handler_return return_value;
     return_value.payload = payload;
